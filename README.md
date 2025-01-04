@@ -1,4 +1,4 @@
-# ComponentizeAny
+# componentize_any
 
 TODO: Delete this and the text below, and describe your gem
 
@@ -18,7 +18,21 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+witty do
+  world do
+    export "wasi:cli/run@0.2.0"
+  end
+
+  package "wasi:cli/run@0.2.0" do
+    interface "run" do
+      define "run", :func, {[] => :result}, counterpart: "component_run"
+    end
+  end
+end
+```
+
+- TODO: support wit parser...
 
 ## Development
 

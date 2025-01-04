@@ -1,3 +1,66 @@
 #!/usr/bin/env ruby
 
 require "componentize_any"
+
+require "optparse"
+require "ostruct"
+require "tempfile"
+
+options = OpenStruct.new
+OptionParser.new do |opts|
+  opts.banner = "Usage: componentize_any [options]"
+
+  opts.on("-w", "--witty-file FILE", "Input witty file") do |v|
+    options.witty = v
+  end
+  opts.on("-i", "--input FILE", "Input original wasm file") do |v|
+    options.input = v
+  end
+  opts.on("-o", "--output FILE.wasm", "Output wasm file") do |v|
+    options.output = v
+  end
+end.parse!
+
+load options.witty
+if ComponentizeAny::Witty.global_wit.nil?
+  raise "Maybe not a witty file: #{options.witty}"
+end
+
+generator = ComponentizeAny::WatGenerator.new
+generator.parse_wit ComponentizeAny::Witty.global_wit
+wat = generator.to_s
+puts "[debug] WAT code:\n#{wat}" if ENV["DEBUG"]
+
+tmpfile = Tempfile.open("__tmp_componentize_any.wat")
+puts "Writing WAT to #{tmpfile.path}"
+tmpfile.write(wat)
+tmpfile.close
+
+tmpfile_wasm = Tempfile.open("__tmp_componentize_any.wat")
+tmpfile_wasm.close
+
+puts "Compiling WAT to WASM0: #{tmpfile.path} -> #{tmpfile_wasm.path}"
+system "wasm-tools parse -o #{tmpfile_wasm.path} #{tmpfile.path}"
+unless $?.success?
+  raise "Failed to compile WAT to WASM0"
+end
+
+puts "joining WASM0 files with #{options.input}"
+
+b1 = IO.read tmpfile_wasm.path, encoding: "BINARY"
+idx = b1.index("\x01\x08\x00\x61\x73\x6d\x01\x00\x00\x00")
+raise "not a component wasm file" if idx.nil?
+
+b2 = IO.read options.input, encoding: "BINARY"
+size = b2.size
+data = ComponentizeAny.to_uleb128_bin(size)
+
+buf = ""
+buf << b1[0...idx]
+buf << "\01" << data
+buf << b2
+buf << b1[idx...b1.size]
+
+IO.write options.output, buf
+puts "created #{options.output}"
+puts "run to check: `wasm-tools dump #{options.output} 2>&1 | less`"

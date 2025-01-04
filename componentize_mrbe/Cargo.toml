@@ -1,0 +1,7 @@
+[package]
+name = "componentize_mrbe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mrubyedge = "1.0.0-rc2"
